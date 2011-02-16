@@ -114,16 +114,10 @@ fn fast_decompress(zipfile: &mut ZipFile) -> anyhow::Result<Vec<u8>> {
 }
 fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
     for version in materialbin::ALL_VERSIONS {
-        println!("Trying {version}");
         if let Ok(material) = data.pread_with(0, version) {
             println!(" [{version}]");
             return Ok(material);
         }
-        println!(
-            "error: {}",
-            data.pread_with::<CompiledMaterialDefinition>(0, version)
-                .unwrap_err()
-        );
     }
 
     anyhow::bail!("Material file is invalid");
