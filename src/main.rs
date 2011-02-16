@@ -1,7 +1,7 @@
 use std::{
     fs::File,
-    io::{BufReader, BufWriter, Read},
-    path::PathBuf,
+    io::{BufReader, Read, Seek, Write},
+    path::{Path, PathBuf},
 };
 
 use anyhow::Context;
@@ -22,24 +22,28 @@ use zip::{
 };
 use zune_inflate::DeflateOptions;
 #[derive(Parser)]
-#[clap(name = "Material Updater", version = "0.1.5")]
+#[clap(name = "Material Updater", version = "0.1.6")]
 #[command(version, about, long_about = None, styles = get_style())]
 struct Options {
     /// Shader pack fild to update
     #[clap(required = true)]
-    file: PathBuf,
+    file: String,
 
     /// Output zip compression level
     #[clap(short, long)]
     zip_compression: Option<u32>,
 
+    /// Process the file, but dont write anything
+    #[clap(short, long)]
+    yeet: bool,
+
     /// Output version
-    #[clap(short, long, required = true)]
-    target_version: MVersion,
+    #[clap(short, long)]
+    target_version: Option<MVersion>,
 
     /// Output path
-    #[arg(short, long, required = true)]
-    output: PathBuf,
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 }
 // Hack for clap support
 #[derive(ValueEnum, Clone)]
@@ -50,7 +54,7 @@ enum MVersion {
     V1_18_30,
 }
 impl MVersion {
-    fn as_version(self) -> MinecraftVersion {
+    const fn as_version(&self) -> MinecraftVersion {
         match self {
             Self::V1_20_80 => MinecraftVersion::V1_20_80,
             Self::V1_19_60 => MinecraftVersion::V1_19_60,
@@ -69,17 +73,105 @@ const fn get_style() -> Styles {
 }
 fn main() -> anyhow::Result<()> {
     let opts = Options::parse();
-    let mcver = opts.target_version.as_version();
-    let pack =
-        BufReader::new(File::open(opts.file).with_context(|| "Error while opening input file")?);
-    let mut zip = ZipArchive::new(pack)?;
-    let output = BufWriter::new(File::create(opts.output)?);
-    let mut outzip = ZipWriter::new(output);
+    let mcversion = match opts.target_version {
+        Some(version) => version.as_version(),
+        None => {
+            const STABLE_LATEST: MinecraftVersion = MinecraftVersion::V1_20_80;
+            println!(
+                "No target version specified, updating to latest stable: {}",
+                STABLE_LATEST
+            );
+            STABLE_LATEST
+        }
+    };
+    let mut input_file =
+        BufReader::new(File::open(&opts.file).with_context(|| "Error while opening input file")?);
+    if opts.file.ends_with(".material.bin") {
+        let output_filename: PathBuf = match &opts.output {
+            Some(output_name) => output_name.to_owned(),
+            None => {
+                let auto_name = update_filename(&opts.file, &mcversion, ".material.bin")?;
+                println!("No output name specified, using {auto_name:?}");
+                auto_name
+            }
+        };
+        let mut output_file = file_to_shrodinger(&output_filename, opts.yeet)?;
+        println!("Processing input {}", style(opts.file).cyan());
+        file_update(&mut input_file, &mut output_file, mcversion)?;
+        return Ok(());
+    }
+    if opts.file.ends_with(".zip") || opts.file.ends_with(".mcpack") {
+        let extension = Path::new(&opts.file)
+            .extension()
+            .with_context(|| "Input file does not have any extension??, weird")?
+            // At this point its valid utf8 soo
+            .to_str()
+            .unwrap();
+        let extension = ".".to_string() + extension;
+        let output_filename: PathBuf = match &opts.output {
+            Some(output_name) => output_name.to_owned(),
+            None => {
+                let auto_name = update_filename(&opts.file, &mcversion, &extension)?;
+                println!("No output name specified, using {auto_name:?}");
+                auto_name
+            }
+        };
+        let mut output_file = file_to_shrodinger(&output_filename, opts.yeet)?;
+        println!("Processing input zip {}", style(opts.file).cyan());
+        zip_update(
+            &mut input_file,
+            &mut output_file,
+            mcversion,
+            opts.zip_compression,
+        )?;
+    }
+    Ok(())
+}
+fn file_to_shrodinger(file: &Path, dissapear: bool) -> anyhow::Result<ShrodingerOutput> {
+    if dissapear {
+        Ok(ShrodingerOutput::Nothing)
+    } else {
+        Ok(ShrodingerOutput::File(File::create(file)?))
+    }
+}
+fn update_filename(
+    filename: &str,
+    version: &MinecraftVersion,
+    postfix: &str,
+) -> anyhow::Result<PathBuf> {
+    let stripped = filename
+        .strip_suffix(postfix)
+        .with_context(|| "String does not contain expected postfix")?;
+    Ok((stripped.to_string() + "_" + &version.to_string() + postfix).into())
+}
+fn file_update<R, W>(input: &mut R, output: &mut W, version: MinecraftVersion) -> anyhow::Result<()>
+where
+    R: Read + Seek,
+    W: Write + Seek,
+{
+    let mut data = Vec::new();
+    let _read = input.read_to_end(&mut data)?;
+    let material = read_material(&data)?;
+    material.write(output, version)?;
+    Ok(())
+}
+fn zip_update<R, W>(
+    input: &mut R,
+    output: &mut W,
+    version: MinecraftVersion,
+    compression_level: Option<u32>,
+) -> anyhow::Result<()>
+where
+    R: Read + Seek,
+    W: Write + Seek,
+{
+    let mut input_zip = ZipArchive::new(input)?;
+    let mut output_zip = ZipWriter::new(output);
     let mut translated_shaders = 0;
-    for index in 0..zip.len() {
-        let mut file = zip.by_index_raw(index)?;
+    for index in 0..input_zip.len() {
+        let mut file = input_zip.by_index_raw(index)?;
         if !file.name().ends_with(".material.bin") {
-            outzip.raw_copy_file(file)?;
+            output_zip.raw_copy_file(file)?;
             continue;
         }
         print!("Processing file {}", style(file.name()).cyan());
@@ -91,16 +183,16 @@ fn main() -> anyhow::Result<()> {
             }
         };
         let file_options = FileOptions::<ExtendedFileOptions>::default()
-            .compression_level(opts.zip_compression.map(|v| v.into()));
-        outzip.start_file(file.name(), file_options)?;
-        material.write(&mut outzip, mcver)?;
+            .compression_level(compression_level.map(|v| v.into()));
+        output_zip.start_file(file.name(), file_options)?;
+        material.write(&mut output_zip, version)?;
         translated_shaders += 1;
     }
-    outzip.finish()?;
+    output_zip.finish()?;
     println!(
         "Ported {} materials in zip to version {}",
         style(translated_shaders.to_string()).green(),
-        style(mcver.to_string()).cyan()
+        style(version.to_string()).cyan()
     );
     Ok(())
 }
@@ -124,4 +216,30 @@ fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
     }
 
     anyhow::bail!("Material file is invalid");
+}
+enum ShrodingerOutput {
+    File(File),
+    Nothing,
+}
+impl Write for ShrodingerOutput {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::File(f) => f.write(buf),
+            Self::Nothing => Ok(buf.len()),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::File(f) => f.flush(),
+            Self::Nothing => Ok(()),
+        }
+    }
+}
+impl Seek for ShrodingerOutput {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        match self {
+            Self::File(f) => f.seek(pos),
+            Self::Nothing => Ok(0),
+        }
+    }
 }
