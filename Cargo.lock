@@ -281,7 +281,7 @@ dependencies = [
 [[package]]
 name = "materialbin"
 version = "0.1.1"
-source = "git+https://github.com/mcbegamerxx954/materialbin#bc1a0ee0a5d999c497d5f3980796485b692b7582"
+source = "git+https://github.com/mcbegamerxx954/materialbin#3513909409226c9804975289875c24dd3d29b272"
 dependencies = [
  "byteorder",
  "indexmap",
