@@ -1,7 +1,7 @@
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Read},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use anyhow::Context;
@@ -22,7 +22,7 @@ use zip::{
 };
 use zune_inflate::DeflateOptions;
 #[derive(Parser)]
-#[clap(name = "Material Updater", version = "0.1.1")]
+#[clap(name = "Material Updater", version = "0.1.5")]
 #[command(version, about, long_about = None, styles = get_style())]
 struct Options {
     /// Shader pack fild to update
@@ -50,7 +50,7 @@ enum MVersion {
     V1_18_30,
 }
 impl MVersion {
-    fn to_version(self) -> MinecraftVersion {
+    fn as_version(self) -> MinecraftVersion {
         match self {
             Self::V1_20_80 => MinecraftVersion::V1_20_80,
             Self::V1_19_60 => MinecraftVersion::V1_19_60,
@@ -69,11 +69,11 @@ const fn get_style() -> Styles {
 }
 fn main() -> anyhow::Result<()> {
     let opts = Options::parse();
-    let mcver = opts.target_version.to_version();
+    let mcver = opts.target_version.as_version();
     let pack =
         BufReader::new(File::open(opts.file).with_context(|| "Error while opening input file")?);
     let mut zip = ZipArchive::new(pack)?;
-    let output = BufWriter::new(File::create_new(opts.output)?);
+    let output = BufWriter::new(File::create(opts.output)?);
     let mut outzip = ZipWriter::new(output);
     let mut translated_shaders = 0;
     for index in 0..zip.len() {
@@ -83,7 +83,7 @@ fn main() -> anyhow::Result<()> {
             continue;
         }
         print!("Processing file {}", style(file.name()).cyan());
-        let mut data = fast_decompress(&mut file)?;
+        let data = fast_decompress(&mut file)?;
         let material = match read_material(&data) {
             Ok(material) => material,
             Err(_) => {
@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
             }
         };
         let file_options = FileOptions::<ExtendedFileOptions>::default()
-            .compression_level(opts.zip_compression.and_then(|v| Some(v.into())));
+            .compression_level(opts.zip_compression.map(|v| v.into()));
         outzip.start_file(file.name(), file_options)?;
         material.write(&mut outzip, mcver)?;
         translated_shaders += 1;
