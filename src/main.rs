@@ -69,7 +69,7 @@ const fn get_style() -> Styles {
 }
 fn main() -> anyhow::Result<()> {
     let opts = Options::parse();
-    let mcver = opts.target_verion.to_version();
+    let mcver = opts.target_version.to_version();
     let pack =
         BufReader::new(File::open(opts.file).with_context(|| "Error while opening input file")?);
     let mut zip = ZipArchive::new(pack)?;
