@@ -276,15 +276,16 @@ dependencies = [
  "materialbin",
  "scroll",
  "zip",
+ "zune-inflate",
 ]
 
 [[package]]
 name = "materialbin"
 version = "0.1.1"
-source = "git+https://github.com/mcbegamerxx954/materialbin#3513909409226c9804975289875c24dd3d29b272"
 dependencies = [
  "byteorder",
  "indexmap",
+ "libc",
  "scroll",
 ]
 
@@ -496,5 +497,14 @@ dependencies = [
  "lockfree-object-pool",
  "log",
  "once_cell",
+ "simd-adler32",
+]
+
+[[package]]
+name = "zune-inflate"
+version = "0.2.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ab332fe2f6680068f3582b16a24f90ad7096d5d39b974d1c0aff0125116f02"
+dependencies = [
  "simd-adler32",
 ]
