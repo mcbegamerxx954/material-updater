@@ -35,7 +35,7 @@ struct Options {
 
     /// Output version
     #[clap(short, long, required = true)]
-    target_verion: MVersion,
+    target_version: MVersion,
 
     /// Output path
     #[arg(short, long, required = true)]
