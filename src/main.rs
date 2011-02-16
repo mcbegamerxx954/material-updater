@@ -107,7 +107,10 @@ fn main() -> anyhow::Result<()> {
 fn fast_decompress(zipfile: &mut ZipFile) -> anyhow::Result<Vec<u8>> {
     let mut output = Vec::with_capacity(zipfile.size().try_into()?);
     let _data = zipfile.read_to_end(&mut output)?;
-    let options = DeflateOptions::default().set_size_hint(zipfile.size().try_into()?);
+    const LIMIT: usize = 100_000_000;
+    let options = DeflateOptions::default()
+        .set_size_hint(zipfile.size().try_into()?)
+        .set_limit(LIMIT);
     let mut decoder = zune_inflate::DeflateDecoder::new_with_options(&output, options);
     let decompressed = decoder.decode_deflate()?;
     Ok(decompressed)
