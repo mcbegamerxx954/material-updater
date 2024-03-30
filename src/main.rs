@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufReader, Read, Seek, Write},
+    io::{self, BufReader, Read, Seek, Write},
     path::{Path, PathBuf},
 };
 
@@ -15,6 +15,7 @@ use clap::{
 use console::style;
 use materialbin::{CompiledMaterialDefinition, MinecraftVersion};
 use scroll::Pread;
+use tempfile::tempfile;
 use zip::{
     read::ZipFile,
     write::{ExtendedFileOptions, FileOptions},
@@ -95,9 +96,14 @@ fn main() -> anyhow::Result<()> {
                 auto_name
             }
         };
-        let mut output_file = file_to_shrodinger(&output_filename, opts.yeet)?;
+        let mut tmp_file = tempfile()?;
+        let mut output_file = file_to_shrodinger(&mut tmp_file, opts.yeet)?;
         println!("Processing input {}", style(opts.file).cyan());
         file_update(&mut input_file, &mut output_file, mcversion)?;
+        if !opts.yeet {
+            let mut output_file = File::create(output_filename)?;
+            io::copy(&mut tmp_file, &mut output_file)?;
+        }
         return Ok(());
     }
     if opts.file.ends_with(".zip") || opts.file.ends_with(".mcpack") {
@@ -116,7 +122,8 @@ fn main() -> anyhow::Result<()> {
                 auto_name
             }
         };
-        let mut output_file = file_to_shrodinger(&output_filename, opts.yeet)?;
+        let mut tmp_file = tempfile()?;
+        let mut output_file = file_to_shrodinger(&mut tmp_file, opts.yeet)?;
         println!("Processing input zip {}", style(opts.file).cyan());
         zip_update(
             &mut input_file,
@@ -124,14 +131,22 @@ fn main() -> anyhow::Result<()> {
             mcversion,
             opts.zip_compression,
         )?;
+        tmp_file.rewind()?;
+        if !opts.yeet {
+            let mut output_file = File::create(output_filename)?;
+            io::copy(&mut tmp_file, &mut output_file)?;
+        }
     }
     Ok(())
 }
-fn file_to_shrodinger(file: &Path, dissapear: bool) -> anyhow::Result<ShrodingerOutput> {
+fn file_to_shrodinger<'a>(
+    file: &'a mut File,
+    dissapear: bool,
+) -> anyhow::Result<ShrodingerOutput<'a>> {
     if dissapear {
         Ok(ShrodingerOutput::Nothing)
     } else {
-        Ok(ShrodingerOutput::File(File::create(file)?))
+        Ok(ShrodingerOutput::File(file))
     }
 }
 fn update_filename(
@@ -217,11 +232,11 @@ fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
 
     anyhow::bail!("Material file is invalid");
 }
-enum ShrodingerOutput {
-    File(File),
+enum ShrodingerOutput<'a> {
+    File(&'a mut File),
     Nothing,
 }
-impl Write for ShrodingerOutput {
+impl<'a> Write for ShrodingerOutput<'a> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             Self::File(f) => f.write(buf),
@@ -235,7 +250,7 @@ impl Write for ShrodingerOutput {
         }
     }
 }
-impl Seek for ShrodingerOutput {
+impl<'a> Seek for ShrodingerOutput<'a> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         match self {
             Self::File(f) => f.seek(pos),
