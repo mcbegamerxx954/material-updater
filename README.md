@@ -9,3 +9,9 @@ parsing code ported to rust from the tool [MaterialBinTool](https://github.com/d
 2. Extract the archive.
 3. Run in terminal
 
+## Example
+``` ./material-updater AF-TrulyDefault-Android.mcpack -t V1-20-80 -o azify.mcpack ```
+
+This command ports the shaders in the file ```AF-TrulyDefault-Android.mcpack``` to 1.20.80 and outputs the result to azify.mcpack
+
+
