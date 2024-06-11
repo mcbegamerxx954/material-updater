@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  make-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4      
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v3
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.git-cliff.outputs.content }}
+          # note you'll typically need to create a personal access token
+          # with permissions to create releases in the other repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+  build:
+    strategy:
+      matrix:
+        include:
+        - target: aarch64-linux-android
+          os: ubuntu-latest
+        - target: armv7-linux-androideabi
+          os: ubuntu-latest
+        - target: x86_64-unknown-linux-gnu
+          os: ubuntu-latest
+        - target: x86_64-apple-darwin
+          os: macos-latest
+        - target: x86_64-pc-windows-msvc
+          os: windows-latest
+    runs-on: ${{matrix.os}}
+    needs: make-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2.7.3
+      - name: Cache Docker images.
+        uses: ScribeMD/docker-cache@0.5.0
+        if: contains(matrix.target, 'android')
+        with:
+          key: docker-${{ runner.os }}-${{ hashFiles('.github/workflows/Release.yml') }}
+      - name: Install android cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        if: contains(matrix.target, 'android')
+        with:
+          target: ${{ matrix.target }}@24
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
+          # Note that glob pattern is not supported yet.
+          bin: injector
+          # (optional) Target triple, default is host triple.
+          target: ${{ matrix.target }}
+          # (required) GitHub token for uploading assets to GitHub Releases.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
