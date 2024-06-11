@@ -102,7 +102,7 @@ fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
         MinecraftVersion::V1_18_30,
     ] {
         if let Ok(material) = data.pread_with(0, version) {
-            println!(" [{version}]");
+            println!("{}", style(format!(" [{version}]")).dim());
             return Ok(material);
         }
     }
