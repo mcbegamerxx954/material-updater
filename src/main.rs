@@ -28,25 +28,26 @@ struct Options {
     #[clap(required = true)]
     file: PathBuf,
 
-    #[clap(required = true)]
-    output_ver: MVersion,
+    #[clap(short, long, required = true)]
+    target_verion: MVersion,
 
     /// Output path
     #[arg(short, long, required = true)]
     output: PathBuf,
 }
+// Hack for clap support
 #[derive(ValueEnum, Clone)]
 enum MVersion {
     V1_20_80,
     V1_19_60,
-    V1_80_30,
+    V1_18_30,
 }
 impl MVersion {
     fn to_version(self) -> MinecraftVersion {
         match self {
             Self::V1_20_80 => MinecraftVersion::V1_20_80,
             Self::V1_19_60 => MinecraftVersion::V1_19_60,
-            Self::V1_80_30 => MinecraftVersion::V1_18_30,
+            Self::V1_18_30 => MinecraftVersion::V1_18_30,
         }
     }
 }
@@ -60,7 +61,7 @@ const fn get_style() -> Styles {
 }
 fn main() -> anyhow::Result<()> {
     let opts = Options::parse();
-    let mcver = opts.output_ver.to_version();
+    let mcver = opts.target_verion.to_version();
     let pack =
         BufReader::new(File::open(opts.file).with_context(|| "Error while opening input file")?);
     let mut zip = ZipArchive::new(pack)?;
@@ -88,8 +89,9 @@ fn main() -> anyhow::Result<()> {
     }
     outzip.finish()?;
     println!(
-        "Processed {} materials",
-        style(translated_shaders.to_string()).green()
+        "Ported {} materials in zip to version {}",
+        style(translated_shaders.to_string()).green(),
+        style(mcver.to_string()).cyan()
     );
     Ok(())
 }
