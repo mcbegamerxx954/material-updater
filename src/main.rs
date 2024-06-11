@@ -20,14 +20,14 @@ use zip::{
     ZipArchive, ZipWriter,
 };
 #[derive(Parser)]
-#[clap(name = "Material Updater", version = "0.0.1")]
+#[clap(name = "Material Updater", version = "0.1.1")]
 #[command(version, about, long_about = None, styles = get_style())]
 struct Options {
     /// Shader pack to update
-
     #[clap(required = true)]
     file: PathBuf,
 
+    /// Version of output
     #[clap(short, long, required = true)]
     target_verion: MVersion,
 
