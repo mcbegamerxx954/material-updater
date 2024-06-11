@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
             outzip.raw_copy_file(file)?;
             continue;
         }
-        println!("Processing file {}", style(file.name()).cyan());
+        print!("Processing file {}", style(file.name()).cyan());
         let mut data = Vec::with_capacity(file.size().try_into()?);
         file.read_to_end(&mut data)?;
         let material = match read_material(&data) {
@@ -100,7 +100,7 @@ fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
         MinecraftVersion::V1_18_30,
     ] {
         if let Ok(material) = data.pread_with(0, version) {
-            println!("{version}");
+            println!(" [{version}]");
             return Ok(material);
         }
     }
