@@ -100,6 +100,7 @@ fn main() -> anyhow::Result<()> {
         let mut output_file = file_to_shrodinger(&mut tmp_file, opts.yeet)?;
         println!("Processing input {}", style(opts.file).cyan());
         file_update(&mut input_file, &mut output_file, mcversion)?;
+        tmp_file.rewind()?;
         if !opts.yeet {
             let mut output_file = File::create(output_filename)?;
             io::copy(&mut tmp_file, &mut output_file)?;
