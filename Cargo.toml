@@ -13,5 +13,5 @@ materialbin = { version = "0.1.1", git = "https://github.com/mcbegamerxx954/mate
 scroll = "0.12.0"
 tempfile = "3.10.1"
 zip = { version = "2.1.3", default-features = false, features = ["deflate", "time"] }
-zune-inflate = "0.2.54"
+
 

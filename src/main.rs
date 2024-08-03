@@ -21,7 +21,7 @@ use zip::{
     write::{ExtendedFileOptions, FileOptions},
     ZipArchive, ZipWriter,
 };
-use zune_inflate::DeflateOptions;
+
 #[derive(Parser)]
 #[clap(name = "Material Updater", version = "0.1.6")]
 #[command(version, about, long_about = None, styles = get_style())]
@@ -185,13 +185,14 @@ where
     let mut output_zip = ZipWriter::new(output);
     let mut translated_shaders = 0;
     for index in 0..input_zip.len() {
-        let mut file = input_zip.by_index_raw(index)?;
+        let mut file = input_zip.by_index(index)?;
         if !file.name().ends_with(".material.bin") {
             output_zip.raw_copy_file(file)?;
             continue;
         }
         print!("Processing file {}", style(file.name()).cyan());
-        let data = fast_decompress(&mut file)?;
+        let mut data = Vec::with_capacity(file.size().try_into()?);
+        file.read_to_end(&mut data)?;
         let material = match read_material(&data) {
             Ok(material) => material,
             Err(_) => {
@@ -212,17 +213,7 @@ where
     );
     Ok(())
 }
-fn fast_decompress(zipfile: &mut ZipFile) -> anyhow::Result<Vec<u8>> {
-    let mut output = Vec::with_capacity(zipfile.size().try_into()?);
-    let _data = zipfile.read_to_end(&mut output)?;
-    const LIMIT: usize = 100_000_000;
-    let options = DeflateOptions::default()
-        .set_size_hint(zipfile.size().try_into()?)
-        .set_limit(LIMIT);
-    let mut decoder = zune_inflate::DeflateDecoder::new_with_options(&output, options);
-    let decompressed = decoder.decode_deflate()?;
-    Ok(decompressed)
-}
+
 fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
     for version in materialbin::ALL_VERSIONS {
         if let Ok(material) = data.pread_with(0, version) {
