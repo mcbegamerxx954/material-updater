@@ -17,13 +17,12 @@ use materialbin::{CompiledMaterialDefinition, MinecraftVersion};
 use scroll::Pread;
 use tempfile::tempfile;
 use zip::{
-    read::ZipFile,
     write::{ExtendedFileOptions, FileOptions},
     ZipArchive, ZipWriter,
 };
 
 #[derive(Parser)]
-#[clap(name = "Material Updater", version = "0.1.6")]
+#[clap(name = "Material Updater", version = "0.1.10")]
 #[command(version, about, long_about = None, styles = get_style())]
 struct Options {
     /// Shader pack fild to update
@@ -77,7 +76,7 @@ fn main() -> anyhow::Result<()> {
     let mcversion = match opts.target_version {
         Some(version) => version.as_version(),
         None => {
-            const STABLE_LATEST: MinecraftVersion = MinecraftVersion::V1_20_80;
+            const STABLE_LATEST: MinecraftVersion = MinecraftVersion::V1_21_20;
             println!(
                 "No target version specified, updating to latest stable: {}",
                 STABLE_LATEST
@@ -215,10 +214,17 @@ where
 }
 
 fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
-    for version in materialbin::ALL_VERSIONS {
-        if let Ok(material) = data.pread_with(0, version) {
-            println!(" [{version}]");
-            return Ok(material);
+    for version in [
+        MinecraftVersion::V1_19_60,
+        MinecraftVersion::V1_20_80,
+        MinecraftVersion::V1_21_20,
+    ] {
+        match data.pread_with(0, version) {
+            Ok(material) => {
+                println!(" [{version}]");
+                return Ok(material);
+            }
+            Err(e) => println!("reading failed [{version}]: {e}"),
         }
     }
 
