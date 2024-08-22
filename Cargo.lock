@@ -299,7 +299,7 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "material-updater"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "clap",
@@ -313,6 +313,7 @@ dependencies = [
 [[package]]
 name = "materialbin"
 version = "0.1.1"
+source = "git+https://github.com/mcbegamerxx954/materialbin#ba57efac1fd8c6942bd7e7be7cabcfe42ffb1207"
 dependencies = [
  "byteorder",
  "indexmap",
