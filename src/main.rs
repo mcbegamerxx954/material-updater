@@ -214,17 +214,10 @@ where
 }
 
 fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
-    for version in [
-        MinecraftVersion::V1_19_60,
-        MinecraftVersion::V1_20_80,
-        MinecraftVersion::V1_21_20,
-    ] {
-        match data.pread_with(0, version) {
-            Ok(material) => {
-                println!(" [{version}]");
-                return Ok(material);
-            }
-            Err(e) => println!("reading failed [{version}]: {e}"),
+    for version in materialbin::ALL_VERSIONS {
+        if let Ok(material) = data.pread_with(0, version) {
+            println!("{}", style(format!(" [{version}]")).dim());
+            return Ok(material);
         }
     }
 
