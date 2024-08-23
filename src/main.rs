@@ -13,7 +13,7 @@ use clap::{
     Parser, ValueEnum,
 };
 use console::style;
-use materialbin::{CompiledMaterialDefinition, MinecraftVersion};
+use materialbin::{CompiledMaterialDefinition, MinecraftVersion, WriteError};
 use scroll::Pread;
 use tempfile::tempfile;
 use zip::{
@@ -183,6 +183,7 @@ where
     let mut input_zip = ZipArchive::new(input)?;
     let mut output_zip = ZipWriter::new(output);
     let mut translated_shaders = 0;
+    let mut warnings = 0;
     for index in 0..input_zip.len() {
         let mut file = input_zip.by_index(index)?;
         if !file.name().ends_with(".material.bin") {
@@ -201,10 +202,33 @@ where
         let file_options = FileOptions::<ExtendedFileOptions>::default()
             .compression_level(compression_level.map(|v| v.into()));
         output_zip.start_file(file.name(), file_options)?;
-        material.write(&mut output_zip, version)?;
+        let result = material.write(&mut output_zip, version);
+        if let Err(err) = result {
+            match err {
+                WriteError::Compat(issue) => {
+                    println!(
+                        "{}:\n{}",
+                        style("Ignoring materialbin because of compatibility error:")
+                            .on_yellow()
+                            .red(),
+                        issue
+                    );
+                    translated_shaders -= 1;
+                    warnings += 1;
+                }
+                _ => return Err(err.into()),
+            }
+            output_zip.abort_file()?;
+        }
         translated_shaders += 1;
     }
     output_zip.finish()?;
+    if warnings != 0 {
+        println!(
+            "{}",
+            style(format!("{warnings} warnings while updating")).yellow()
+        );
+    }
     println!(
         "Ported {} materials in zip to version {}",
         style(translated_shaders.to_string()).green(),
