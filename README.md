@@ -7,7 +7,7 @@ parsing code ported to rust from the tool [MaterialBinTool](https://github.com/d
 ## Usage
 1. Download binary for your platform from [releases](https://github.com/mcbegamerxx954/material-updater/releases/latest).
 2. Extract the archive.
-3. Run in terminal
+3. If on windows, drag and drop your pack to the exe file, else run the tool in terminal
 
 ## Example
 ``` ./material-updater AF-TrulyDefault-Android.mcpack -t V1-20-80 -o azify.mcpack ```
