@@ -25,7 +25,7 @@ use zip::{
 #[clap(name = "Material Updater", version = "0.1.11")]
 #[command(version, about, long_about = None, styles = get_style())]
 struct Options {
-    /// Shader pack fild to update
+    /// Shader pack file to update
     #[clap(required = true)]
     file: String,
 
