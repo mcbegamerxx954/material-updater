@@ -13,7 +13,9 @@ use clap::{
     Parser, ValueEnum,
 };
 
-use materialbin::{CompiledMaterialDefinition, MinecraftVersion, WriteError};
+use materialbin::{
+    bgfx_shader::BgfxShader, CompiledMaterialDefinition, MinecraftVersion, WriteError,
+};
 use owo_colors::{colors::Yellow, OwoColorize};
 use scroll::Pread;
 use tempfile::tempfile;
@@ -37,7 +39,8 @@ struct Options {
     /// Process the file, but dont write anything
     #[clap(short, long)]
     yeet: bool,
-
+    #[clap(short, long)]
+    verbose: bool,
     /// Output version
     #[clap(short, long)]
     target_version: Option<MVersion>,
@@ -103,7 +106,7 @@ fn main() -> anyhow::Result<()> {
         let mut tmp_file = tempfile()?;
         let mut output_file = file_to_shrodinger(&mut tmp_file, opts.yeet)?;
         println!("Processing input {}", opts.file.cyan());
-        file_update(&mut input_file, &mut output_file, mcversion)?;
+        file_update(&mut input_file, &mut output_file, mcversion, opts.verbose)?;
         tmp_file.rewind()?;
         if !opts.yeet {
             let mut output_file = File::create(output_filename)?;
@@ -135,6 +138,7 @@ fn main() -> anyhow::Result<()> {
             &mut output_file,
             mcversion,
             opts.zip_compression,
+            opts.verbose,
         )?;
         tmp_file.rewind()?;
         if !opts.yeet {
@@ -164,14 +168,19 @@ fn update_filename(
         .with_context(|| "String does not contain expected postfix")?;
     Ok((stripped.to_string() + "_" + &version.to_string() + postfix).into())
 }
-fn file_update<R, W>(input: &mut R, output: &mut W, version: MinecraftVersion) -> anyhow::Result<()>
+fn file_update<R, W>(
+    input: &mut R,
+    output: &mut W,
+    version: MinecraftVersion,
+    verbose: bool,
+) -> anyhow::Result<()>
 where
     R: Read + Seek,
     W: Write + Seek,
 {
     let mut data = Vec::new();
     let _read = input.read_to_end(&mut data)?;
-    let material = read_material(&data)?;
+    let material = read_material(&data, verbose)?;
     material.write(output, version)?;
     Ok(())
 }
@@ -180,6 +189,7 @@ fn zip_update<R, W>(
     output: &mut W,
     version: MinecraftVersion,
     compression_level: Option<u32>,
+    verbose: bool,
 ) -> anyhow::Result<()>
 where
     R: Read + Seek,
@@ -201,12 +211,13 @@ where
         data.clear();
         data.reserve(file.size().try_into()?);
         file.read_to_end(&mut data)?;
-        let material = match read_material(&data) {
+        let material = match read_material(&data, verbose) {
             Ok(material) => material,
             Err(_) => {
                 anyhow::bail!("Material file {} is invalid for all versions", file.name());
             }
         };
+        sus(&material);
         let file_options = FileOptions::<ExtendedFileOptions>::default()
             .compression_level(compression_level.map(|v| v.into()));
         output_zip.start_file(file.name(), file_options)?;
@@ -242,11 +253,22 @@ where
     Ok(())
 }
 
-fn read_material(data: &[u8]) -> anyhow::Result<CompiledMaterialDefinition> {
+fn read_material(data: &[u8], verbose: bool) -> anyhow::Result<CompiledMaterialDefinition> {
     for version in materialbin::ALL_VERSIONS {
-        if let Ok(material) = data.pread_with(0, version) {
-            print!("{}", format!(" [{version}]\n").dimmed());
-            return Ok(material);
+        match data.pread_with(0, version) {
+            Ok(material) => {
+                print!("{}", format!(" [{version}]\n").dimmed());
+                return Ok(material);
+            }
+            Err(e) => {
+                if verbose {
+                    println!(
+                        "Failed [{version}] {}, backtrace:{}",
+                        &e,
+                        e.get_backtracey()
+                    )
+                }
+            }
         }
     }
 
@@ -276,5 +298,20 @@ impl<'a> Seek for ShrodingerOutput<'a> {
             Self::File(f) => f.seek(pos),
             Self::Nothing => Ok(0),
         }
+    }
+}
+fn sus(mt: &CompiledMaterialDefinition) {
+    //    let sus = mt.passes.iter().map(|(_s,p)|p.variants.iter().map(|v|v.shader_codes.iter().map(|(_p,s)|s.bgfx_shader_data)));
+    for (_, code) in mt
+        .passes
+        .iter()
+        //        .filter(|(passes, _)| *passes == "AlphaTest" || *passes == "Opaque")
+        .flat_map(|(_, pass)| &pass.variants)
+        .flat_map(|variants| &variants.shader_codes)
+    // .filter(|(stage, _)| {
+    //     stage.stage == ShaderStage::Fragment && stage.platform_name == "ESSL_100"
+    // })
+    {
+        let sh: BgfxShader = code.bgfx_shader_data.pread(0).unwrap();
     }
 }
